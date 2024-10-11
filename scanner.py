@@ -251,7 +251,7 @@ class Escaner:
 
 # Ejemplo de uso
 if __name__ == "__main__":
-    escaner = Escaner('ruta_al_archivo.txt')
+    escaner = Escaner('masmas.txt')
     while True:
         token = escaner.siguiente_token()
         if token.type == 'EOF':
