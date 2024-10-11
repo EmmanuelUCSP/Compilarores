@@ -21,7 +21,7 @@ class Escaner:
         self.contador_errores = 0
         self.tokens_generador = self.escanear()
         self.buffer = []
-    
+
     def obtener_caracter(self):
         """Obtiene el siguiente carácter y avanza el puntero."""
         if self.posicion < len(self.datos_entrada):
@@ -194,130 +194,66 @@ class Escaner:
                 token = Token('AND_OP', '&&', self.linea, columna_inicial)
                 print(f"DEBUG SCAN - AND_OP [ && ] encontrada en línea {self.linea}, columna {columna_inicial}")
                 return token
-            else:
-                print(f"DEBUG SCAN - Error léxico: carácter inesperado '&' en línea {self.linea}, columna {self.columna}")
-                self.contador_errores += 1
-                return None
-
         elif caracter == '|':
             if siguiente_caracter == '|':
                 self.obtener_caracter()  # Consumir el segundo '|'
                 token = Token('OR_OP', '||', self.linea, columna_inicial)
                 print(f"DEBUG SCAN - OR_OP [ || ] encontrada en línea {self.linea}, columna {columna_inicial}")
                 return token
-            else:
-                print(f"DEBUG SCAN - Error léxico: carácter inesperado '|' en línea {self.linea}, columna {self.columna}")
-                self.contador_errores += 1
-                return None
-
         elif caracter == '>':
             if siguiente_caracter == '=':
-                self.obtener_caracter()  # Consumir el '='
-                token = Token('GE', '>=', self.linea, columna_inicial)
-                print(f"DEBUG SCAN - GE [ >= ] encontrado en línea {self.linea}, columna {columna_inicial}")
+                self.obtener_caracter()  # Consumir '='
+                token = Token('GTE_OP', '>=', self.linea, columna_inicial)
+                print(f"DEBUG SCAN - GTE_OP [ >= ] encontrada en línea {self.linea}, columna {columna_inicial}")
                 return token
-            else:
-                token = Token('GT', '>', self.linea, columna_inicial)
-                print(f"DEBUG SCAN - GT [ > ] encontrado en línea {self.linea}, columna {columna_inicial}")
-                return token
-
         elif caracter == '<':
             if siguiente_caracter == '=':
-                self.obtener_caracter()  # Consumir el '='
-                token = Token('LE', '<=', self.linea, columna_inicial)
-                print(f"DEBUG SCAN - LE [ <= ] encontrado en línea {self.linea}, columna {columna_inicial}")
+                self.obtener_caracter()  # Consumir '='
+                token = Token('LTE_OP', '<=', self.linea, columna_inicial)
+                print(f"DEBUG SCAN - LTE_OP [ <= ] encontrada en línea {self.linea}, columna {columna_inicial}")
                 return token
-            else:
-                token = Token('LT', '<', self.linea, columna_inicial)
-                print(f"DEBUG SCAN - LT [ < ] encontrado en línea {self.linea}, columna {columna_inicial}")
-                return token
-
         elif caracter == '=':
             if siguiente_caracter == '=':
-                self.obtener_caracter()  # Consumir el '='
-                token = Token('EQ', '==', self.linea, columna_inicial)
-                print(f"DEBUG SCAN - EQ [ == ] encontrado en línea {self.linea}, columna {columna_inicial}")
+                self.obtener_caracter()  # Consumir '='
+                token = Token('EQUAL_OP', '==', self.linea, columna_inicial)
+                print(f"DEBUG SCAN - EQUAL_OP [ == ] encontrada en línea {self.linea}, columna {columna_inicial}")
                 return token
-            else:
-                token = Token('ASSIGN_OP', '=', self.linea, columna_inicial)
-                print(f"DEBUG SCAN - ASSIGN_OP [ = ] encontrado en línea {self.linea}, columna {columna_inicial}")
-                return token
-
         elif caracter == '!':
             if siguiente_caracter == '=':
-                self.obtener_caracter()  # Consumir el '='
-                token = Token('NE', '!=', self.linea, columna_inicial)
-                print(f"DEBUG SCAN - NE [ != ] encontrado en línea {self.linea}, columna {columna_inicial}")
+                self.obtener_caracter()  # Consumir '='
+                token = Token('NOT_EQUAL_OP', '!=', self.linea, columna_inicial)
+                print(f"DEBUG SCAN - NOT_EQUAL_OP [ != ] encontrada en línea {self.linea}, columna {columna_inicial}")
                 return token
-            else:
-                token = Token('NOT_OP', '!', self.linea, columna_inicial)
-                print(f"DEBUG SCAN - NOT_OP [ ! ] encontrado en línea {self.linea}, columna {columna_inicial}")
-                return token
+        
+        token = Token('DELIMITADOR', caracter, self.linea, columna_inicial)
+        print(f"DEBUG SCAN - DELIMITADOR [ {caracter} ] encontrado en línea {self.linea}, columna {columna_inicial}")
+        return token
 
-        operadores_y_delimitadores = {
-            '+': 'ADD_OP',
-            '-': 'SUB_OP',
-            '*': 'MUL_OP',
-            '/': 'DIV_OP',
-            '%': 'MOD_OP',
-            '^': 'EXP_OP',
-            '(': 'OPEN_PAR',
-            ')': 'CLOSE_PAR',
-            ';': 'SEMICOLON',
-            '$': 'EOP',
-            ':': 'COLON',
-            '{': 'OPEN_BRACE',
-            '}': 'CLOSE_BRACE',
-            '[': 'OPEN_BRACKET',
-            ']': 'CLOSE_BRACKET',
-            ',': 'COMMA'
-        }
-        
-        if caracter in operadores_y_delimitadores:
-            token_type = operadores_y_delimitadores[caracter]
-            token = Token(token_type, caracter, self.linea, columna_inicial)
-            print(f"DEBUG SCAN - {token_type} [ {caracter} ] encontrado en línea {self.linea}, columna {columna_inicial}")
-            return token
-        
-        # Si no es ninguno de los operadores o delimitadores esperados
-        print(f"DEBUG SCAN - Error léxico: carácter inesperado '{caracter}' en línea {self.linea}, columna {self.columna}")
-        self.contador_errores += 1
-        return None
-    
     def escanear(self):
-        """Genera tokens uno a uno."""
-        print("INFO SCAN - Inicio del escaneo…")
+        """Generador de tokens que escanea la entrada."""
         while True:
             token = self.obtener_token()
             if token.type == 'EOF':
                 yield token
                 break
-            if token.type != 'ERROR':
-                yield token
-        print(f"INFO SCAN - Escaneo completado con {self.contador_errores} errores")
+            yield token
     
-    def get_next_token(self):
-        """Obtiene el siguiente token, utilizando el buffer si es necesario."""
-        if self.buffer:
-            return self.buffer.pop(0)
+    def siguiente_token(self):
+        """Devuelve el siguiente token del generador."""
         try:
             return next(self.tokens_generador)
         except StopIteration:
             return Token('EOF', None, self.linea, self.columna)
-    
-    def peek_token(self, n=1):
-        """Permite mirar 'n' tokens por adelantado sin consumirlos."""
-        while len(self.buffer) < n:
-            try:
-                self.buffer.append(next(self.tokens_generador))
-            except StopIteration:
-                self.buffer.append(Token('EOF', None, self.linea, self.columna))
-        return self.buffer[n-1]
 
-# Ejemplo de uso del Escaner
+    def obtener_todos_los_tokens(self):
+        """Devuelve todos los tokens generados hasta el momento."""
+        return list(self.tokens_generador)
+
+# Ejemplo de uso
 if __name__ == "__main__":
-    ruta_archivo = 'masmas.txt'  # Reemplaza con la ruta de tu archivo
-    escaner = Escaner(ruta_archivo)
-    for token in escaner.escanear():
+    escaner = Escaner('ruta_al_archivo.txt')
+    while True:
+        token = escaner.siguiente_token()
+        if token.type == 'EOF':
+            break
         print(token)
-    print(f"Total de errores léxicos: {escaner.contador_errores}")
