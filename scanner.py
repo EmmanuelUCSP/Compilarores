@@ -1,14 +1,29 @@
+from dataclasses import dataclass
+
+@dataclass
+class Token:
+    type: str
+    value: any
+    line: int
+    column: int
+
 class Escaner:
     def __init__(self, ruta_archivo):
-        with open(ruta_archivo, 'r') as archivo:
-            self.datos_entrada = archivo.read()
+        try:
+            with open(ruta_archivo, 'r') as archivo:
+                self.datos_entrada = archivo.read()
+        except FileNotFoundError:
+            print(f"Error: El archivo '{ruta_archivo}' no se encontró.")
+            self.datos_entrada = ""
         self.posicion = 0
         self.linea = 1
         self.columna = 1
         self.contador_errores = 0
-
+        self.tokens_generador = self.escanear()
+        self.buffer = []
+    
     def obtener_caracter(self):
-        """Obtiene el siguiente carácter y avanza el puntero"""
+        """Obtiene el siguiente carácter y avanza el puntero."""
         if self.posicion < len(self.datos_entrada):
             caracter = self.datos_entrada[self.posicion]
             self.posicion += 1
@@ -19,37 +34,42 @@ class Escaner:
                 self.columna += 1
             return caracter
         return None  # Fin del archivo
-
+    
     def ver_caracter(self):
-        """Mira el siguiente carácter sin mover el puntero"""
+        """Mira el siguiente carácter sin mover el puntero."""
         if self.posicion < len(self.datos_entrada):
             return self.datos_entrada[self.posicion]
         return None
-
+    
     def saltar_espacios(self):
-        """Salta espacios en blanco y comentarios"""
+        """Salta espacios en blanco y comentarios."""
         while True:
             caracter = self.ver_caracter()
             if caracter in [' ', '\t', '\n']:
                 self.obtener_caracter()  # Consumir espacio en blanco
             elif caracter == '/' or caracter == '#':  # Posible comentario
-                self.manejar_comentario_o_division()
+                manejado = self.manejar_comentario_o_division()
+                if manejado == ('OPERADOR', '/'):
+                    # Retornar el operador de división como un token
+                    return Token('OPERADOR', '/', self.linea, self.columna - 1)
             else:
                 break
-
+    
     def manejar_comentario_o_division(self):
-        """Maneja comentarios estilo C, C++ o el operador de división"""
+        """Maneja comentarios estilo C, C++ o el operador de división."""
         caracter = self.obtener_caracter()
         if caracter == '/':
             siguiente_caracter = self.ver_caracter()
-            if siguiente_caracter == '/':  # Comentario  C++
+            if siguiente_caracter == '/':  # Comentario C++
+                self.obtener_caracter()  # Consumir segundo '/'
                 while self.obtener_caracter() != '\n':
-                    continue  # Ignorar todo hasta el final de la línea
-            elif siguiente_caracter == '*':  # Comentario  C
+                    if self.ver_caracter() is None:
+                        break
+            elif siguiente_caracter == '*':  # Comentario C
                 self.obtener_caracter()  # Consumir '*'
                 while True:
                     caracter = self.obtener_caracter()
-                    if caracter is None:  # Fin del archivo sin cierre de comentario
+                    if caracter is None:
                         print(f"Error: Comentario sin cerrar en la línea {self.linea}, columna {self.columna}")
                         self.contador_errores += 1
                         return
@@ -57,24 +77,27 @@ class Escaner:
                         self.obtener_caracter()  # Consumir '/'
                         break
             else:
-                # Si no es un comentario, es el operador de división
-                print(f"DEBUG SCAN - DIV_OP [ / ] found at ({self.linea}:{self.columna-1})")
+                # Es el operador de división
                 return ('OPERADOR', '/')
         elif caracter == '#':  # Comentario Python
             while self.obtener_caracter() != '\n':
-                continue 
-
+                if self.ver_caracter() is None:
+                    break
+    
     def obtener_token(self):
-        """Identifica el siguiente token válido"""
-        self.saltar_espacios()
+        """Identifica y retorna el siguiente token válido."""
+        salto = self.saltar_espacios()
+        if isinstance(salto, Token):
+            return salto  # Retornar el operador de división
+        
         columna_inicial = self.columna  # Guardar la columna inicial
         caracter = self.obtener_caracter()
         
         if caracter is None:
-            return None  # Fin del archivo
+            return Token('EOF', None, self.linea, self.columna)
         
         # Identificadores y palabras clave
-        if caracter.isalpha() or caracter == '_':  # Empieza con letra o '_'
+        if caracter.isalpha() or caracter == '_':
             return self.manejar_identificador_o_palabra_clave(caracter, columna_inicial)
         
         # Números enteros
@@ -84,138 +107,153 @@ class Escaner:
         # Caracteres
         if caracter == "'":
             return self.manejar_caracter(columna_inicial)
-
+    
         # Cadenas
         if caracter == '"':
             return self.manejar_cadena(columna_inicial)
-
+    
         # Operadores y delimitadores adicionales
-        if caracter in [':', '{', '}', '[', ']', ',', ';', '>', '<', '=', '+', '-', '*', '/', '(', ')', '$', '%', '^', '!']:
-            return self.manejar_operador_o_delimitador(caracter, columna_inicial)
-        
+        if caracter in [':', '{', '}', '[', ']', ',', ';', '>', '<', '=', '+', '-', '*', '/', '$', '%', '^', '!', '&', '|']:
+            token = self.manejar_operador_o_delimitador(caracter, columna_inicial)
+            if token:
+                return token
+    
         # Error léxico
-        print(f"DEBUG SCAN - Lexical error: unexpected character '{caracter}' at line {self.linea}, column {self.columna}")
+        print(f"DEBUG SCAN - Error léxico: carácter inesperado '{caracter}' en línea {self.linea}, columna {self.columna}")
         self.contador_errores += 1
         return self.obtener_token()  # Continuar después del error
-
+    
     def manejar_identificador_o_palabra_clave(self, caracter, columna_inicial):
-        """Procesa un identificador o palabra clave"""
+        """Procesa un identificador o palabra clave."""
         identificador = caracter
         while self.ver_caracter() is not None and (self.ver_caracter().isalnum() or self.ver_caracter() == '_'):
             identificador += self.obtener_caracter()
         
-        # palabra clave reservada
         palabras_clave = ['array', 'boolean', 'char', 'else', 'false', 'for', 'function', 'if', 'integer', 'print', 'return', 'string', 'true', 'void', 'while']
         if identificador in palabras_clave:
-            print(f"DEBUG SCAN - PRINT_KEY [ {identificador} ] found at ({self.linea}:{columna_inicial})")
-            return ('PALABRA_CLAVE', identificador)
+            token = Token('PALABRA_CLAVE', identificador, self.linea, columna_inicial)
+            print(f"DEBUG SCAN - PALABRA_CLAVE [ {identificador} ] encontrada en línea {self.linea}, columna {columna_inicial}")
+            return token
         else:
-            print(f"DEBUG SCAN - ID [ {identificador} ] found at ({self.linea}:{columna_inicial})")
-            return ('IDENTIFICADOR', identificador)
-
+            token = Token('IDENTIFICADOR', identificador, self.linea, columna_inicial)
+            print(f"DEBUG SCAN - IDENTIFICADOR [ {identificador} ] encontrado en línea {self.linea}, columna {columna_inicial}")
+            return token
+    
     def manejar_entero(self, caracter, columna_inicial):
-        """Procesa un número entero"""
+        """Procesa un número entero."""
         numero = caracter
         while self.ver_caracter() is not None and self.ver_caracter().isdigit():
             numero += self.obtener_caracter()
         
-        # evitar casos  123abc 
+        # Evitar casos 123abc
         if self.ver_caracter() is not None and self.ver_caracter().isalpha():
-            print(f"DEBUG SCAN - Lexical error: invalid number '{numero}{self.ver_caracter()}' at line {self.linea}, column {self.columna}")
+            print(f"DEBUG SCAN - Error léxico: número inválido '{numero}{self.ver_caracter()}' en línea {self.linea}, columna {self.columna}")
             self.contador_errores += 1
             while self.ver_caracter() is not None and self.ver_caracter().isalnum():
                 self.obtener_caracter()  # Consumir caracteres inválidos
             return self.obtener_token()  # Continuar después del error
-        print(f"DEBUG SCAN - INT [ {numero} ] found at ({self.linea}:{columna_inicial})")
-        return ('ENTERO', int(numero))
-
+        token = Token('ENTERO', int(numero), self.linea, columna_inicial)
+        print(f"DEBUG SCAN - ENTERO [ {numero} ] encontrado en línea {self.linea}, columna {columna_inicial}")
+        return token
+    
     def manejar_caracter(self, columna_inicial):
-        """Procesa un carácter entre comillas simples"""
+        """Procesa un carácter entre comillas simples."""
         caracter = self.obtener_caracter()  # Obtener el carácter dentro de las comillas simples
         if self.obtener_caracter() != "'":
-            print(f"DEBUG SCAN - Error: Character not closed at line {self.linea}, column {self.columna}")
+            print(f"DEBUG SCAN - Error: Carácter no cerrado en línea {self.linea}, columna {self.columna}")
             self.contador_errores += 1
-            return None
-        print(f"DEBUG SCAN - CHAR [ '{caracter}' ] found at ({self.linea}:{columna_inicial})")
-        return ('CHAR', caracter)
-
+            return Token('ERROR', 'CHAR_NOT_CLOSED', self.linea, columna_inicial)
+        token = Token('CHAR', caracter, self.linea, columna_inicial)
+        print(f"DEBUG SCAN - CHAR [ '{caracter}' ] encontrado en línea {self.linea}, columna {columna_inicial}")
+        return token
+    
     def manejar_cadena(self, columna_inicial):
-        """Procesa una cadena entre comillas dobles"""
+        """Procesa una cadena entre comillas dobles."""
         cadena = ''
         while True:
             caracter = self.obtener_caracter()
             if caracter == '"':  # Final de la cadena
                 break
             if caracter is None or caracter == '\n':
-                print(f"DEBUG SCAN - Error: String not closed at line {self.linea}, column {self.columna}")
+                print(f"DEBUG SCAN - Error: Cadena no cerrada en línea {self.linea}, columna {self.columna}")
                 self.contador_errores += 1
-                return None
+                return Token('ERROR', 'STRING_NOT_CLOSED', self.linea, columna_inicial)
             cadena += caracter
-        print(f"DEBUG SCAN - STRING [ \"{cadena}\" ] found at ({self.linea}:{columna_inicial})")
-        return ('STRING', cadena)
-
+        token = Token('STRING', cadena, self.linea, columna_inicial)
+        print(f"DEBUG SCAN - STRING [ \"{cadena}\" ] encontrada en línea {self.linea}, columna {columna_inicial}")
+        return token
+    
     def manejar_operador_o_delimitador(self, caracter, columna_inicial):
-        """Procesa operadores y delimitadores"""
+        """Procesa operadores y delimitadores."""
         siguiente_caracter = self.ver_caracter()
 
-        # operadores &&, ||, >=, <=, ==, !=
+        # Operadores &&, ||, >=, <=, ==, !=
         if caracter == '&':
             if siguiente_caracter == '&':
                 self.obtener_caracter()  # Consumir el segundo '&'
-                print(f"DEBUG SCAN - AND_OP [ && ] found at ({self.linea}:{columna_inicial})")
-                return ('AND_OP', '&&')
+                token = Token('AND_OP', '&&', self.linea, columna_inicial)
+                print(f"DEBUG SCAN - AND_OP [ && ] encontrada en línea {self.linea}, columna {columna_inicial}")
+                return token
             else:
-                print(f"DEBUG SCAN - Lexical error: unexpected character '&' at line {self.linea}, column {self.columna}")
+                print(f"DEBUG SCAN - Error léxico: carácter inesperado '&' en línea {self.linea}, columna {self.columna}")
                 self.contador_errores += 1
                 return None
 
         elif caracter == '|':
             if siguiente_caracter == '|':
                 self.obtener_caracter()  # Consumir el segundo '|'
-                print(f"DEBUG SCAN - OR_OP [ || ] found at ({self.linea}:{columna_inicial})")
-                return ('OR_OP', '||')
+                token = Token('OR_OP', '||', self.linea, columna_inicial)
+                print(f"DEBUG SCAN - OR_OP [ || ] encontrada en línea {self.linea}, columna {columna_inicial}")
+                return token
             else:
-                print(f"DEBUG SCAN - Lexical error: unexpected character '|' at line {self.linea}, column {self.columna}")
+                print(f"DEBUG SCAN - Error léxico: carácter inesperado '|' en línea {self.linea}, columna {self.columna}")
                 self.contador_errores += 1
                 return None
 
         elif caracter == '>':
             if siguiente_caracter == '=':
                 self.obtener_caracter()  # Consumir el '='
-                print(f"DEBUG SCAN - GE [ >= ] found at ({self.linea}:{columna_inicial})")
-                return ('GE', '>=')
+                token = Token('GE', '>=', self.linea, columna_inicial)
+                print(f"DEBUG SCAN - GE [ >= ] encontrado en línea {self.linea}, columna {columna_inicial}")
+                return token
             else:
-                print(f"DEBUG SCAN - GT [ > ] found at ({self.linea}:{columna_inicial})")
-                return ('GT', '>')
+                token = Token('GT', '>', self.linea, columna_inicial)
+                print(f"DEBUG SCAN - GT [ > ] encontrado en línea {self.linea}, columna {columna_inicial}")
+                return token
 
         elif caracter == '<':
             if siguiente_caracter == '=':
                 self.obtener_caracter()  # Consumir el '='
-                print(f"DEBUG SCAN - LE [ <= ] found at ({self.linea}:{columna_inicial})")
-                return ('LE', '<=')
+                token = Token('LE', '<=', self.linea, columna_inicial)
+                print(f"DEBUG SCAN - LE [ <= ] encontrado en línea {self.linea}, columna {columna_inicial}")
+                return token
             else:
-                print(f"DEBUG SCAN - LT [ < ] found at ({self.linea}:{columna_inicial})")
-                return ('LT', '<')
+                token = Token('LT', '<', self.linea, columna_inicial)
+                print(f"DEBUG SCAN - LT [ < ] encontrado en línea {self.linea}, columna {columna_inicial}")
+                return token
 
         elif caracter == '=':
             if siguiente_caracter == '=':
                 self.obtener_caracter()  # Consumir el '='
-                print(f"DEBUG SCAN - EQ [ == ] found at ({self.linea}:{columna_inicial})")
-                return ('EQ', '==')
+                token = Token('EQ', '==', self.linea, columna_inicial)
+                print(f"DEBUG SCAN - EQ [ == ] encontrado en línea {self.linea}, columna {columna_inicial}")
+                return token
             else:
-                print(f"DEBUG SCAN - ASSIGN_OP [ = ] found at ({self.linea}:{columna_inicial})")
-                return ('ASSIGN_OP', '=')
+                token = Token('ASSIGN_OP', '=', self.linea, columna_inicial)
+                print(f"DEBUG SCAN - ASSIGN_OP [ = ] encontrado en línea {self.linea}, columna {columna_inicial}")
+                return token
 
         elif caracter == '!':
             if siguiente_caracter == '=':
                 self.obtener_caracter()  # Consumir el '='
-                print(f"DEBUG SCAN - NE [ != ] found at ({self.linea}:{columna_inicial})")
-                return ('NE', '!=')
+                token = Token('NE', '!=', self.linea, columna_inicial)
+                print(f"DEBUG SCAN - NE [ != ] encontrado en línea {self.linea}, columna {columna_inicial}")
+                return token
             else:
-                print(f"DEBUG SCAN - NOT_OP [ ! ] found at ({self.linea}:{columna_inicial})")
-                return ('NOT_OP', '!')
+                token = Token('NOT_OP', '!', self.linea, columna_inicial)
+                print(f"DEBUG SCAN - NOT_OP [ ! ] encontrado en línea {self.linea}, columna {columna_inicial}")
+                return token
 
-        
         operadores_y_delimitadores = {
             '+': 'ADD_OP',
             '-': 'SUB_OP',
@@ -223,10 +261,6 @@ class Escaner:
             '/': 'DIV_OP',
             '%': 'MOD_OP',
             '^': 'EXP_OP',
-            '!': 'NOT_OP',
-            '=': 'ASSIGN_OP',
-            '<': 'LT',
-            '>': 'GT',
             '(': 'OPEN_PAR',
             ')': 'CLOSE_PAR',
             ';': 'SEMICOLON',
@@ -240,23 +274,50 @@ class Escaner:
         }
         
         if caracter in operadores_y_delimitadores:
-            print(f"DEBUG SCAN - {operadores_y_delimitadores[caracter]} [ {caracter} ] found at ({self.linea}:{columna_inicial})")
-            return ('DELIM', caracter)
+            token_type = operadores_y_delimitadores[caracter]
+            token = Token(token_type, caracter, self.linea, columna_inicial)
+            print(f"DEBUG SCAN - {token_type} [ {caracter} ] encontrado en línea {self.linea}, columna {columna_inicial}")
+            return token
         
         # Si no es ninguno de los operadores o delimitadores esperados
-        print(f"DEBUG SCAN - Lexical error: unexpected character '{caracter}' at line {self.linea}, column {self.columna}")
+        print(f"DEBUG SCAN - Error léxico: carácter inesperado '{caracter}' en línea {self.linea}, columna {self.columna}")
         self.contador_errores += 1
         return None
-
+    
     def escanear(self):
-        """Función principal para escanear todo el archivo"""
-        print("INFO SCAN - Start scanning…")
-        token = self.obtener_token()
-        while token is not None:
+        """Genera tokens uno a uno."""
+        print("INFO SCAN - Inicio del escaneo…")
+        while True:
             token = self.obtener_token()
-        print(f"INFO SCAN - Completed with {self.contador_errores} errors")
+            if token.type == 'EOF':
+                yield token
+                break
+            if token.type != 'ERROR':
+                yield token
+        print(f"INFO SCAN - Escaneo completado con {self.contador_errores} errores")
+    
+    def get_next_token(self):
+        """Obtiene el siguiente token, utilizando el buffer si es necesario."""
+        if self.buffer:
+            return self.buffer.pop(0)
+        try:
+            return next(self.tokens_generador)
+        except StopIteration:
+            return Token('EOF', None, self.linea, self.columna)
+    
+    def peek_token(self, n=1):
+        """Permite mirar 'n' tokens por adelantado sin consumirlos."""
+        while len(self.buffer) < n:
+            try:
+                self.buffer.append(next(self.tokens_generador))
+            except StopIteration:
+                self.buffer.append(Token('EOF', None, self.linea, self.columna))
+        return self.buffer[n-1]
 
-
-ruta_archivo = 'masmas.txt' 
-escaner = Escaner(ruta_archivo)
-escaner.escanear()
+# Ejemplo de uso del Escaner
+if __name__ == "__main__":
+    ruta_archivo = 'masmas.txt'  # Reemplaza con la ruta de tu archivo
+    escaner = Escaner(ruta_archivo)
+    for token in escaner.escanear():
+        print(token)
+    print(f"Total de errores léxicos: {escaner.contador_errores}")
