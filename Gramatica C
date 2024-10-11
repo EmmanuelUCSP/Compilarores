@@ -1,30 +1,86 @@
-1. Program -> Declaration Program | ε
-2. Declaration -> FunctionDeclaration | VariableDeclaration
-3. FunctionDeclaration -> Type Identifier ( Parameters ) Block
-4. VariableDeclaration -> Type Identifier ;
-5. Type -> integer | boolean | char | string | void
-6. Parameters -> ParameterList | ε
-7. ParameterList -> Type Identifier | Type Identifier , ParameterList
-8. Block -> { StatementList }
-9. StatementList -> Statement StatementList | ε
-10. Statement -> Block | ExpressionStatement | IfStatement | WhileStatement | ReturnStatement | PrintStatement
-11. ExpressionStatement -> Expression ; | ;
-12. IfStatement -> if ( Expression ) Statement else Statement | if ( Expression ) Statement
-13. WhileStatement -> while ( Expression ) Statement
-14. ReturnStatement -> return Expression ; | return ;
-15. PrintStatement -> print ( Expression ) ;
-16. Expression -> AssignmentExpression
-17. AssignmentExpression -> OrExpression = AssignmentExpression | OrExpression
-18. OrExpression -> AndExpression || OrExpression | AndExpression
-19. AndExpression -> EqualityExpression && AndExpression | EqualityExpression
-20. EqualityExpression -> RelationalExpression == RelationalExpression | RelationalExpression != RelationalExpression | RelationalExpression
-21. RelationalExpression -> AdditiveExpression < AdditiveExpression | AdditiveExpression > AdditiveExpression | AdditiveExpression <= AdditiveExpression | AdditiveExpression >= AdditiveExpression | AdditiveExpression
-22. AdditiveExpression -> MultiplicativeExpression + AdditiveExpression | MultiplicativeExpression - AdditiveExpression | MultiplicativeExpression
-23. MultiplicativeExpression -> PrimaryExpression * MultiplicativeExpression | PrimaryExpression / MultiplicativeExpression | PrimaryExpression % MultiplicativeExpression | PrimaryExpression
-24. PrimaryExpression -> Identifier | Constant | ( Expression )
-25. Constant -> IntegerLiteral | BooleanLiteral | CharacterLiteral | StringLiteral | null
-26. Identifier -> [a-zA-Z_][a-zA-Z0-9_]*
-27. IntegerLiteral -> [0-9]+
-28. BooleanLiteral -> true | false
-29. CharacterLiteral -> ' [^'\n] '
-30. StringLiteral -> " [^"\n]* "
+1. Program ::= DeclarationList
+
+2. DeclarationList ::= Declaration DeclarationList
+                   | ε
+
+3. Declaration ::= FunctionDeclaration
+                | VariableDeclaration
+
+4. FunctionDeclaration ::= Type Identifier '(' Parameters ')' Block
+
+5. VariableDeclaration ::= Type Identifier ';'
+
+6. Type ::= 'integer'
+        | 'boolean'
+        | 'char'
+        | 'string'
+        | 'void'
+
+7. Parameters ::= ParameterList
+              | ε
+
+8. ParameterList ::= Parameter (',' Parameter)*
+
+9. Parameter ::= Type Identifier
+
+10. Block ::= '{' StatementList '}'
+
+11. StatementList ::= Statement StatementList
+                  | ε
+
+12. Statement ::= Block
+              | ExpressionStatement
+              | IfStatement
+              | WhileStatement
+              | ReturnStatement
+              | PrintStatement
+
+13. ExpressionStatement ::= Expression ';'
+                        | ';'
+
+14. IfStatement ::= 'if' '(' Expression ')' Statement ('else' Statement)?
+                    
+15. WhileStatement ::= 'while' '(' Expression ')' Statement
+
+16. ReturnStatement ::= 'return' Expression ';'
+                      | 'return' ';'
+
+17. PrintStatement ::= 'print' '(' Expression ')' ';'
+
+18. Expression ::= AssignmentExpression
+
+19. AssignmentExpression ::= OrExpression '=' AssignmentExpression
+                          | OrExpression
+
+20. OrExpression ::= AndExpression ('||' AndExpression)*
+
+21. AndExpression ::= EqualityExpression ('&&' EqualityExpression)*
+
+22. EqualityExpression ::= RelationalExpression (('==' | '!=') RelationalExpression)*
+
+23. RelationalExpression ::= AdditiveExpression (('<' | '>' | '<=' | '>=') AdditiveExpression)*
+
+24. AdditiveExpression ::= MultiplicativeExpression (('+' | '-') MultiplicativeExpression)*
+
+25. MultiplicativeExpression ::= PrimaryExpression (('*' | '/' | '%') PrimaryExpression)*
+
+26. PrimaryExpression ::= Identifier
+                      | Constant
+                      | '(' Expression ')'
+
+27. Constant ::= IntegerLiteral
+            | BooleanLiteral
+            | CharacterLiteral
+            | StringLiteral
+            | 'null'
+
+28. Identifier ::= [a-zA-Z_][a-zA-Z0-9_]*
+
+29. IntegerLiteral ::= [0-9]+
+
+30. BooleanLiteral ::= 'true'
+                   | 'false'
+
+31. CharacterLiteral ::= '\'' [^'\n] '\''
+
+32. StringLiteral ::= '"' [^"\n]* '"'
