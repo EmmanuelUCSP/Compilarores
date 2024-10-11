@@ -1,119 +1,99 @@
+from scanner import Escaner
+
 class Parser:
     def __init__(self, escaner):
         self.escaner = escaner
-        self.token_actual = self.escaner.get_next_token()
-
-    def consumir(self, tipo_token):
-        """Consume el token actual y obtiene el siguiente."""
-        if self.token_actual.type == tipo_token:
-            self.token_actual = self.escaner.get_next_token()
-        else:
-            self.error(f"Se esperaba token de tipo '{tipo_token}', pero se encontró '{self.token_actual.type}'")
-
-    def error(self, mensaje):
-        """Maneja los errores de análisis."""
-        print(f"Error: {mensaje}")
-        raise Exception(mensaje)
+        self.token_actual = self.escaner.siguiente_token()  # Obtener el primer token
 
     def parse(self):
-        """Inicia el análisis sintáctico."""
-        return self.program()
+        # Iniciar el análisis sintáctico a partir del nodo raíz
+        self.program()
 
     def program(self):
-        """Program ::= DeclarationList"""
-        return self.declaration_list()
+        self.declaration_list()
 
     def declaration_list(self):
-        """DeclarationList ::= Declaration DeclarationList | ε"""
-        declaraciones = []
-        while self.token_actual.type in ['FUNCTION', 'VARIABLE']:  # Aquí se deben definir los tipos de tokens correspondientes
-            declaraciones.append(self.declaration())
-        return declaraciones
+        while self.token_actual.type in ['PALABRA_CLAVE', 'IDENTIFICADOR']:
+            self.declaration()
 
     def declaration(self):
-        """Declaration ::= FunctionDeclaration | VariableDeclaration"""
-        if self.token_actual.type == 'FUNCTION':
-            return self.function_declaration()
-        elif self.token_current.type == 'VARIABLE':
-            return self.variable_declaration()
+        if self.token_actual.type in ['PALABRA_CLAVE']:
+            self.function_declaration()  # Se considera que las funciones son las declaraciones válidas
+        elif self.token_actual.type == 'IDENTIFICADOR':
+            self.variable_declaration()  # Se asume que es una declaración de variable
         else:
-            self.error(f"Se esperaba FUNCTION o VARIABLE, pero se encontró '{self.token_actual.type}'")
+            self.error("Declaración esperada")
 
     def function_declaration(self):
-        """FunctionDeclaration ::= Type Identifier '(' Parameters ')' Block"""
-        tipo = self.token_actual.value
-        self.consumir('TYPE')  # Se espera un tipo
-        nombre = self.token_actual.value
-        self.consumir('IDENTIFICADOR')  # Se espera un identificador
-        self.consumir('OPEN_PAR')  # Se espera '('
-        parametros = self.parameters()
-        self.consumir('CLOSE_PAR')  # Se espera ')'
-        bloque = self.block()
-        return {'tipo': 'FunctionDeclaration', 'tipo_retorno': tipo, 'nombre': nombre, 'parametros': parametros, 'bloque': bloque}
+        # Analiza una declaración de función
+        self.match('PALABRA_CLAVE')  # Tipo
+        self.match('IDENTIFICADOR')    # Identificador
+        self.match('DELIMITADOR')      # '('
+        self.parameters()               # Parámetros
+        self.match('DELIMITADOR')      # ')'
+        self.block()                   # Bloque
 
     def variable_declaration(self):
-        """VariableDeclaration ::= Type Identifier ';'"""
-        tipo = self.token_actual.value
-        self.consumir('TYPE')  # Se espera un tipo
-        nombre = self.token_actual.value
-        self.consumir('IDENTIFICADOR')  # Se espera un identificador
-        self.consumir('SEMICOLON')  # Se espera ';'
-        return {'tipo': 'VariableDeclaration', 'tipo': tipo, 'nombre': nombre}
+        # Analiza una declaración de variable
+        self.match('PALABRA_CLAVE')  # Tipo
+        self.match('IDENTIFICADOR')    # Identificador
+        self.match('DELIMITADOR')      # ';'
 
     def parameters(self):
-        """Parameters ::= ParameterList | ε"""
-        if self.token_actual.type == 'IDENTIFICADOR':
-            return self.parameter_list()
-        return []  # ε
+        if self.token_actual.type != 'DELIMITADOR':
+            self.parameter_list()
 
     def parameter_list(self):
-        """ParameterList ::= Parameter (',' Parameter)*"""
-        parametros = [self.parameter()]
-        while self.token_actual.type == 'COMMA':
-            self.consumir('COMMA')
-            parametros.append(self.parameter())
-        return parametros
+        self.parameter()
+        while self.token_actual.type == 'DELIMITADOR':
+            self.match('DELIMITADOR')  # ','
+            self.parameter()
 
     def parameter(self):
-        """Parameter ::= Type Identifier"""
-        tipo = self.token_actual.value
-        self.consumir('TYPE')  # Se espera un tipo
-        nombre = self.token_actual.value
-        self.consumir('IDENTIFICADOR')  # Se espera un identificador
-        return {'tipo': 'Parameter', 'tipo': tipo, 'nombre': nombre}
+        self.match('PALABRA_CLAVE')  # Tipo
+        self.match('IDENTIFICADOR')    # Identificador
 
     def block(self):
-        """Block ::= '{' StatementList '}'"""
-        self.consumir('OPEN_BRACE')  # Se espera '{'
-        statements = self.statement_list()
-        self.consumir('CLOSE_BRACE')  # Se espera '}'
-        return statements
+        self.match('DELIMITADOR')  # '{'
+        self.statement_list()
+        self.match('DELIMITADOR')  # '}'
 
     def statement_list(self):
-        """StatementList ::= Statement StatementList | ε"""
-        statements = []
-        while self.token_actual.type != 'CLOSE_BRACE':
-            statements.append(self.statement())
-        return statements
+        while self.token_actual.type in ['DELIMITADOR', 'PALABRA_CLAVE', 'IDENTIFICADOR']:
+            self.statement()
 
     def statement(self):
-        """Statement ::= Block | ExpressionStatement | IfStatement | WhileStatement | ReturnStatement | PrintStatement"""
-        if self.token_current.type == 'BLOCK':
-            return self.block()
-        # Aquí deberías implementar el resto de las declaraciones
-        # como ExpressionStatement, IfStatement, WhileStatement, etc.
+        if self.token_actual.type == 'DELIMITADOR':  # Bloque
+            self.block()
+        elif self.token_actual.type in ['PALABRA_CLAVE', 'IDENTIFICADOR']:  # Expresión
+            self.expression_statement()
 
-    # Aquí debes implementar las demás funciones para manejar las declaraciones
-    # como ExpressionStatement, IfStatement, WhileStatement, ReturnStatement, PrintStatement, y Expression.
+    def expression_statement(self):
+        if self.token_actual.type in ['PALABRA_CLAVE', 'IDENTIFICADOR']:
+            self.match('IDENTIFICADOR')  # Expresión
+        self.match('DELIMITADOR')  # ';'
 
-# Ejemplo de uso
+    def match(self, token_type):
+        if self.token_actual.type == token_type:
+            self.token_actual = self.escaner.siguiente_token()
+        else:
+            self.error(f"Se esperaba el token {token_type} pero se encontró {self.token_actual.type}")
+
+    def error(self, mensaje):
+        print(f"Error de análisis: {mensaje}")
+
+
+
+
 if __name__ == "__main__":
-    ruta_archivo = 'masmas.txt'  # Reemplaza con la ruta de tu archivo
-    escaner = Escaner(ruta_archivo)
+    ruta_archivo = 'masmas.txt'
+    escaner = Escaner('masmas.txt')
+    while True:
+        token = escaner.siguiente_token()
+        if token.type == 'EOF':
+            break
+        print(token)
+
+    # Iniciar el parser
     parser = Parser(escaner)
-    try:
-        resultado = parser.parse()
-        print("Análisis completado con éxito:")
-        print(resultado)
-    except Exception as e:
-        print(e)
+    parser.parse()  
